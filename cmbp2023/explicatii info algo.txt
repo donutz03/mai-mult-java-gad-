@@ -1,0 +1,2 @@
+Two pointers: inseamna ca am un st si am un dr; un left si un right si un while de obicei
+arrays & hashing inseamna ca 
