@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# Numele fisierului CSV
+medicamente_csv="medicamente.csv"
+
+# Functie pentru afisarea meniului de optiuni
+afiseaza_meniu() {
+    echo "Meniu:"
+    echo "1. Adaugare medicament"
+    echo "2. Stergere medicament"
+    echo "3. Afisare medicamente"
+    echo "4. Iesire"
+}
+
+# Functie pentru generarea unui ID nou (incrementarea celui mai mare ID disponibil)
+genereaza_id_nou() {
+    ultimul_id=$(sed -n '$s/^\([^,]*\).*/\1/p' "$medicamente_csv")
+    if [[ -z $ultimul_id ]]; then
+        echo 1
+    else
+        echo $((ultimul_id + 1))
+    fi
+}
+
+# Functie pentru adaugarea unui medicament nou
+adaugare_medicament() {
+    id=$(genereaza_id_nou)
+    echo "Introduceti denumirea medicamentului:"
+    read denumire
+    echo "Introduceti gramajul medicamentului:"
+    read gramaj
+    echo "Introduceti forma pastilelor:"
+    read forma
+    echo "Introduceti descrierea medicamentului:"
+    read descriere
+    echo "Introduceti lotul medicamentului:"
+    read lot
+    echo "Introduceti data de expirare a medicamentului:"
+    read data_expirare
+    echo "Introduceti numarul de bucati in stoc:"
+    read stoc
+    echo "$id,$denumire,$gramaj,$forma,$descriere,$lot,$data_expirare,$stoc" >> "$medicamente_csv"
+    echo "Medicament adaugat cu succes."
+}
+
+# Functie pentru stergerea unui medicament dupa ID
+stergere_medicament() {
+    echo "Introduceti ID-ul medicamentului de sters:"
+    read id
+    if grep -q "^$id," "$medicamente_csv"; then
+        grep -v "^$id," "$medicamente_csv" > temp.csv
+        mv temp.csv "$medicamente_csv"
+        echo "Medicament sters cu succes."
+    else
+        echo "ID-ul introdus nu exista in fisier."
+    fi
+}
+# Functie pentru afisarea medicamentelor
+afisare_medicamente() {
+    echo "Afisare medicamente:"
+    echo "ID, Denumire, Gramaj, Forma pastilelor, Descriere, Lot, Data de expirare, Nr. bucati in stoc"
+    cat "$medicamente_csv"
+}
+
+# Meniul principal
+while true; do
+    afiseaza_meniu
+    echo "Introduceti optiunea:"
+    read optiune
+
+    case $optiune in
+        1) adaugare_medicament;;
+        2) stergere_medicament;;
+        3) afisare_medicamente;;
+        4) echo "La revedere!"; return;;
+        *) echo "Optiune invalida.";;
+    esac
+
+    echo
+done
+
+
+
+
+
+
+

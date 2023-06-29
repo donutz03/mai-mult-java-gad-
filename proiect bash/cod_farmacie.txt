@@ -1,0 +1,278 @@
+#!/bin/bash
+
+PATIENTS_FILE="patients.csv"
+MEDICINES_FILE="medicines.csv"
+ORDERS_FILE="orders.csv"
+
+
+
+# Funcție pentru a genera un ID unic bazat pe cel mai mare ID disponibil în fișier
+get_next_id() {
+  local file=$1
+  if [[ ! -f $file ]]; then
+    echo 1
+  else
+    local max_id=$(tail -n 1 "$file" | cut -d',' -f1)
+    echo $((max_id + 1))
+  fi
+}
+
+# Funcție pentru a crea fișierul CSV pentru pacienți
+create_patients_csv() {
+  if [[ ! -f $PATIENTS_FILE ]]; then
+    echo "ID,Nume,Prenume,CNP,Nr. Telefon,Adresa" > "$PATIENTS_FILE"
+  fi
+}
+
+
+# Funcție pentru a verifica CNP-ul unui pacient
+# Expresia regulată "^[0-9]+$" se potrivește cu un șir de caractere care conține doar cifre de la început # până la sfârșit. 
+check_cnp() {
+  local cnp=$1
+  if [[ ${#cnp} -ne 13 ]]; then
+    echo "CNP invalid. CNP-ul trebuie să aibă exact 13 cifre."
+    return 0
+  elif ! [[ $cnp =~ ^[0-9]+$ ]]; then
+    echo "CNP invalid. CNP-ul trebuie să conțină doar cifre."
+    return 0
+  fi
+  return 1
+}
+
+add_patient() {
+  local file=$1
+  local last_id=$(tail -n 1 $file | cut -d ',' -f 1)
+  local new_id=$((last_id + 1))
+  local name=$2
+  local surname=$3
+  local cnp=$4
+  local phone=$5
+  local address=$6
+
+  while ! check_cnp $cnp; do
+    echo "Introduceți un CNP valid:"
+    read cnp
+  done
+
+  echo "$new_id,$name,$surname,$cnp,$phone,$address" >> $file
+  echo "Pacient adăugat cu succes."
+}
+
+update_patient() {
+  local file=$1
+  local id=$2
+  local name=$3
+  local surname=$4
+  local cnp=$5
+  local phone=$6
+  local address=$7
+
+  while ! check_cnp $cnp; do
+    echo "Introduceți un CNP valid:"
+    read cnp
+  done
+
+  sed -i "s/^$id,[^,]*/$id,$name,$surname,$cnp,$phone,$address/" $file
+  echo "Datele pacientului au fost actualizate cu succes."
+}
+
+# Funcție pentru a șterge un pacient din fișierul CSV
+delete_patient() {
+  local id=$1
+  sed -i "/^$id,/d" "$PATIENTS_FILE"
+  echo "Pacient șters cu succes. ID: $id"
+}
+
+# Funcție pentru a afișa toți pacienții din fișierul CSV
+show_patients() {
+  cat "$PATIENTS_FILE"
+}
+
+
+
+
+# Funcție pentru a crea fișierul CSV pentru medicamente
+create_medicines_csv() {
+  if [[ ! -f $MEDICINES_FILE ]]; then
+    echo "ID,Denumire,Gramaj,Forma Pastilelor,Descriere,Lot,Data de Expirare,Nr. Bucăți în Stoc" > "$MEDICINES_FILE"
+  fi
+}
+
+# Funcție pentru a adăuga un nou medicament în fișierul CSV
+add_medicine() {
+  local name=$1
+  local dosage=$2
+  local pill_form=$3
+  local description=$4
+  local lot=$5
+  local expiration_date=$6
+  local stock=$7
+  local id=$(get_next_id "$MEDICINES_FILE")
+  echo "$id,$name,$dosage,$pill_form,$description,$lot,$expiration_date,$stock" >> "$MEDICINES_FILE"
+  echo "Medicament adăugat cu succes. ID: $id"
+}
+
+# Funcție pentru a șterge un medicament din fișierul CSV
+delete_medicine() {
+  local id=$1
+  sed -i "/^$id,/d" "$MEDICINES_FILE"
+  echo "Medicament șters cu succes. ID: $id"
+}
+
+# Funcție pentru a afișa toate medicamentele din fișierul CSV
+show_medicines() {
+  cat "$MEDICINES_FILE"
+}
+
+# Funcție pentru a mări stocul unui medicament din fișierul CSV
+increase_stock() {
+  local id=$1
+  local quantity=$2
+  awk -F',' -v OFS=',' -v id="$id" -v quantity="$quantity" '$1==id {$8+=$8+quantity}1' "$MEDICINES_FILE" > tmp && mv tmp "$MEDICINES_FILE"
+  echo "Stocul a fost mărit cu succes pentru medicamentul cu ID: $id"
+}
+
+# Funcție pentru a crea fișierul CSV pentru comenzile pacienților
+create_orders_csv() {
+  if [[ ! -f $ORDERS_FILE ]]; then
+    echo "ID_Pacient,Nume_Pacient,ID_Medicament,Denumire_Medicament,Cantitate" > "$ORDERS_FILE"
+  fi
+}
+
+# Funcție pentru ca un pacient să plaseze o comandă de medicament
+place_order() {
+  local patient_id=$1
+  local patient_name=$2
+  local medicine_id=$3
+  local medicine_name=$4
+  local quantity=$5
+
+  # Verificăm dacă medicamentul există în fișierul de medicamente
+  grep -q "^$medicine_id," "$MEDICINES_FILE"
+  if [[ $? -eq 0 ]]; then
+    # Medicamentul există, verificăm dacă este suficient stoc
+    local stock=$(grep "^$medicine_id," "$MEDICINES_FILE" | cut -d',' -f8)
+    if [[ $stock -ge $quantity ]]; then
+      # Este suficient stoc, plasăm comanda și actualizăm stocul
+      echo "$patient_id,$patient_name,$medicine_id,$medicine_name,$quantity" >> "$ORDERS_FILE"
+      increase_stock "$medicine_id" "-$quantity"
+      echo "Comandă plasată cu succes."
+    else
+      echo "Nu există suficient stoc pentru medicamentul $medicine_name."
+    fi
+  else
+    echo "Medicamentul cu ID $medicine_id nu există."
+  fi
+}
+
+# Funcție pentru a afișa comenzile plasate
+show_orders() {
+  cat "$ORDERS_FILE"
+}
+
+# Funcție pentru a afișa meniul de opțiuni
+show_menu() {
+  echo "Meniu:"
+  echo "1. Adăugare pacient"
+  echo "2. Ștergere pacient"
+  echo "3. Afișare pacienți"
+  echo "4. Actualizare pacient"
+  echo "5. Verificare CNP" // nu e bine
+  echo "6. Adăugare medicament"
+  echo "7. Ștergere medicament"
+  echo "8. Afișare medicamente"
+  echo "9. Mărire stoc medicament"
+  echo "10. Plasare comandă"
+  echo "11. Afișare comenzi"
+  echo "12. Ieșire"
+}
+
+# Funcție pentru citirea opțiunii utilizatorului
+read_option() {
+  local option
+  read -p "Selectați o opțiune: " option
+  echo $option
+}
+
+# Funcție pentru bucla principală
+main() {
+  create_patients_csv
+  create_medicines_csv
+  create_orders_csv
+
+  while true; do
+    show_menu
+    option=$(read_option)
+
+    case $option in
+      1)
+        read -p "Nume: " name
+        read -p "Prenume: " surname
+        read -p "CNP: " cnp
+        read -p "Nr. Telefon: " phone
+        read -p "Adresa: " address
+        add_patient "$name" "$surname" "$cnp" "$phone" "$address"
+        ;;
+      2)
+        read -p "ID: " id
+        delete_patient "$id"
+        ;;
+      3)
+        show_patients
+        ;;
+      4)
+        read -p "ID: " id
+        read -p "Câmp (Nume, Prenume, CNP, Nr. Telefon, Adresa): " field
+        read -p "Valoare: " value
+        update_patient "$id" "$field" "$value"
+        ;;
+      5)
+        read -p "CNP: " cnp
+        check_cnp "$cnp"
+        ;;
+      6)
+        read -p "Denumire: " name
+        read -p "Gramaj: " dosage
+        read -p "Forma Pastilelor: " pill_form
+        read -p "Descriere: " description
+        read -p "Lot: " lot
+        read -p "Data de Expirare: " expiration_date
+        read -p "Nr. Bucăți în Stoc: " stock
+        add_medicine "$name" "$dosage" "$pill_form" "$description" "$lot" "$expiration_date" "$stock"
+        ;;
+      7)
+        read -p "ID: " id
+        delete_medicine "$id"
+        ;;
+      8)
+        show_medicines
+        ;;
+      9)
+        read -p "ID: " id
+        read -p "Cantitate: " quantity
+        increase_stock "$id" "$quantity"
+        ;;
+      10)
+        read -p "ID Pacient: " patient_id
+        read -p "Nume Pacient: " patient_name
+        read -p "ID Medicament: " medicine_id
+        read -p "Denumire Medicament: " medicine_name
+        read -p "Cantitate: " quantity
+        place_order "$patient_id" "$patient_name" "$medicine_id" "$medicine_name" "$quantity"
+        ;;
+      11)
+        show_orders
+        ;;
+      12)
+        exit
+        ;;
+      *)
+        echo "Opțiune invalidă. Selectați o opțiune validă."
+        ;;
+    esac
+    echo
+  done
+}
+
+# Rulare script principal
+main
